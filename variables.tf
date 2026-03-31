@@ -192,6 +192,12 @@ variable "create_load_balancer" {
   default     = false
 }
 
+variable "target_group_arn" {
+  description = "ARN of an existing target group (ALB outside the module). Attaches the ECS service to this target group."
+  type        = string
+  default     = null
+}
+
 variable "load_balancer_subnet_ids" {
   description = "Subnets for ALB. Required when create_load_balancer is true."
   type        = list(string)

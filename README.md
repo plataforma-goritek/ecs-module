@@ -81,6 +81,7 @@ Exemplo completo em `examples/production/main.tf`.
 | `allowed_security_group_ids` | `list(string)` | `[]` | SGs de origem permitidos para ingress. |
 | `allowed_cidr_blocks` | `list(string)` | `[]` | CIDRs permitidos para ingress. |
 | `create_load_balancer` | `bool` | `false` | Cria ALB e integra ao ECS service. |
+| `target_group_arn` | `string` | `null` | ARN de um target group existente (ALB fora do modulo); associa a service ao TG. |
 | `load_balancer_subnet_ids` | `list(string)` | `[]` | Subnets do ALB quando habilitado. |
 | `listener_protocol` | `string` | `"HTTP"` | Protocolo do listener ALB (`HTTP`/`HTTPS`). |
 | `certificate_arn` | `string` | `null` | Certificado ACM para HTTPS. |
@@ -103,7 +104,9 @@ Exemplo completo em `examples/production/main.tf`.
 | `security_group_id` | ID do SG criado, quando habilitado. |
 | `load_balancer_arn` | ARN do ALB, quando habilitado. |
 | `alb_dns_name` | DNS do ALB, quando habilitado. |
-| `target_group_arn` | ARN do target group, quando habilitado. |
+| `target_group_arn` | ARN do target group em uso (criado pelo modulo ou `target_group_arn` externo). |
+| `effective_attach_to_load_balancer` | `true` quando a service registra destino em ALB/TG. |
+| `effective_external_target_group` | `true` quando usa `target_group_arn` externo. |
 | `log_group_name` | Nome do log group do servico. |
 | `effective_create_load_balancer` | Flag efetiva para criacao do ALB. |
 | `effective_create_service_autoscaling` | Flag efetiva para autoscaling. |

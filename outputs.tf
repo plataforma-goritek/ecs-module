@@ -44,8 +44,10 @@ output "alb_dns_name" {
 }
 
 output "target_group_arn" {
-  description = "Target group ARN when load balancer is enabled."
-  value       = local.effective_create_load_balancer ? aws_lb_target_group.this[0].arn : null
+  description = "Target group ARN used by the ECS service (module-created TG or external target_group_arn)."
+  value = local.attach_to_load_balancer ? (
+    local.has_external_target_group ? trimspace(var.target_group_arn) : aws_lb_target_group.this[0].arn
+  ) : null
 }
 
 output "log_group_name" {
@@ -61,4 +63,14 @@ output "effective_create_load_balancer" {
 output "effective_create_service_autoscaling" {
   description = "Effective flag for autoscaling enablement based on deployment mode."
   value       = local.effective_create_service_scaling
+}
+
+output "effective_attach_to_load_balancer" {
+  description = "True when the service registers targets in a load balancer (internal ALB or external target group)."
+  value       = local.attach_to_load_balancer
+}
+
+output "effective_external_target_group" {
+  description = "True when target_group_arn is set and the service uses an external target group."
+  value       = local.has_external_target_group
 }

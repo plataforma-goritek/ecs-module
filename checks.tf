@@ -7,8 +7,10 @@ check "security_group_required" {
 
 check "security_group_ingress_required" {
   assert {
-    condition     = !var.create_security_group || length(var.allowed_security_group_ids) > 0 || length(var.allowed_cidr_blocks) > 0 || (var.create_load_balancer || var.deployment_mode == "production")
-    error_message = "When create_security_group is true, provide allowed_security_group_ids or allowed_cidr_blocks, unless traffic comes from an ALB in this module."
+    condition = !var.create_security_group || length(var.allowed_security_group_ids) > 0 || length(var.allowed_cidr_blocks) > 0 || (var.create_load_balancer || var.deployment_mode == "production") || (
+      var.target_group_arn != null && trimspace(var.target_group_arn) != ""
+    )
+    error_message = "When create_security_group is true, provide allowed_security_group_ids or allowed_cidr_blocks, unless traffic comes from an ALB (in this module, production ALB, or via target_group_arn for an external ALB)."
   }
 }
 

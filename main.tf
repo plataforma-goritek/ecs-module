@@ -6,6 +6,9 @@ locals {
   effective_create_load_balancer   = var.create_load_balancer || var.deployment_mode == "production"
   effective_create_service_scaling = var.create_service_autoscaling || var.deployment_mode == "production"
 
+  has_external_target_group = var.target_group_arn != null && trimspace(var.target_group_arn) != ""
+  attach_to_load_balancer   = local.effective_create_load_balancer || local.has_external_target_group
+
   common_tags = merge(
     {
       Name       = var.name
@@ -198,7 +201,7 @@ resource "aws_ecs_service" "this" {
   launch_type                        = "FARGATE"
   platform_version                   = var.platform_version
   enable_execute_command             = var.enable_execute_command
-  health_check_grace_period_seconds  = local.effective_create_load_balancer ? var.health_check_grace_period_seconds : null
+  health_check_grace_period_seconds  = local.attach_to_load_balancer ? var.health_check_grace_period_seconds : null
   deployment_minimum_healthy_percent = var.deployment_minimum_healthy_percent
   deployment_maximum_percent         = var.deployment_maximum_percent
 
@@ -209,15 +212,16 @@ resource "aws_ecs_service" "this" {
   }
 
   dynamic "load_balancer" {
-    for_each = local.effective_create_load_balancer ? [1] : []
+    for_each = local.attach_to_load_balancer ? [1] : []
 
     content {
-      target_group_arn = aws_lb_target_group.this[0].arn
+      target_group_arn = local.has_external_target_group ? trimspace(var.target_group_arn) : aws_lb_target_group.this[0].arn
       container_name   = var.container_name
       container_port   = var.container_port
     }
   }
 
+  # Listener tem count dinâmico; referenciar o recurso (sem índice) mantém dependência válida na configuração.
   depends_on = [aws_lb_listener.this]
   tags       = local.common_tags
 }
