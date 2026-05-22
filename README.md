@@ -78,8 +78,11 @@ Exemplo completo em `examples/production/main.tf`.
 | `task_memory` | `number` | `1024` | Memoria da task Fargate (MiB). |
 | `desired_count` | `number` | `1` | Quantidade inicial de tasks. |
 | `create_security_group` | `bool` | `true` | Cria SG dedicado para o servico. |
+| `fargate_sg_delete_delay_seconds` | `number` | `300` | Sleep no destroy antes de remover o SG, evitando `DependencyViolation` enquanto Fargate libera ENIs. |
 | `allowed_security_group_ids` | `list(string)` | `[]` | SGs de origem permitidos para ingress. |
 | `allowed_cidr_blocks` | `list(string)` | `[]` | CIDRs permitidos para ingress. |
+| `execution_role_arn` | `string` | `null` | IAM role do ECS para pull/logs. Quando `null`, usa `arn:aws:iam::<account>:role/ecsTaskExecutionRole`. |
+| `task_role_arn` | `string` | `null` | IAM role assumida pelo container (task role). |
 | `create_load_balancer` | `bool` | `false` | Cria ALB e integra ao ECS service. |
 | `target_group_arn` | `string` | `null` | ARN de um target group existente (ALB fora do modulo); associa a service ao TG. |
 | `load_balancer_subnet_ids` | `list(string)` | `[]` | Subnets do ALB quando habilitado. |
@@ -132,6 +135,12 @@ cd ../production
 terraform init -backend=false
 terraform validate
 ```
+
+## Gotchas
+
+- **ALB externo via `target_group_arn`**: quando setado, o modulo nao cria ALB/TG proprios; apenas anexa a service ao TG existente. O consumer deve incluir `depends_on = [module.alb]` na chamada do modulo porque `aws_ecs_service` nao suporta `depends_on` dinamico.
+- **`fargate_sg_delete_delay_seconds`**: o default do provider AWS (~15min) costuma ser insuficiente para liberar ENIs do Fargate, causando `DependencyViolation` ao deletar o SG. O `null_resource.fargate_eni_release_wait` dorme esse intervalo no destroy. Combina com `timeouts.delete = 45m` no `aws_security_group.service`.
+- **`execution_role_arn`**: quando `null`, fallback para `arn:aws:iam::<current-account>:role/ecsTaskExecutionRole`. A role precisa existir na conta — o modulo nao a cria.
 
 ## Versionamento
 

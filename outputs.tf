@@ -46,7 +46,7 @@ output "alb_dns_name" {
 output "target_group_arn" {
   description = "Target group ARN used by the ECS service (module-created TG or external target_group_arn)."
   value = local.attach_to_load_balancer ? (
-    local.has_external_target_group ? trimspace(var.target_group_arn) : aws_lb_target_group.this[0].arn
+    local.has_external_target_group ? local.external_target_group_arn : aws_lb_target_group.this[0].arn
   ) : null
 }
 

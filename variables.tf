@@ -168,6 +168,29 @@ variable "create_security_group" {
   default     = true
 }
 
+variable "fargate_sg_delete_delay_seconds" {
+  description = "Seconds to wait on destroy before deleting the service security group, allowing Fargate ENIs to be released. Workaround for AWS provider DependencyViolation when SG is deleted while task ENIs are still attached."
+  type        = number
+  default     = 300
+
+  validation {
+    condition     = var.fargate_sg_delete_delay_seconds >= 0 && var.fargate_sg_delete_delay_seconds <= 1800
+    error_message = "fargate_sg_delete_delay_seconds must be between 0 and 1800."
+  }
+}
+
+variable "execution_role_arn" {
+  description = "IAM role ARN used by ECS to pull images and write logs. When null, falls back to arn:aws:iam::<current-account>:role/ecsTaskExecutionRole."
+  type        = string
+  default     = null
+}
+
+variable "task_role_arn" {
+  description = "IAM role ARN assumed by the container (task role). Optional."
+  type        = string
+  default     = null
+}
+
 variable "security_group_ids" {
   description = "Additional security group IDs attached to ECS tasks."
   type        = list(string)

@@ -6,8 +6,15 @@ locals {
   effective_create_load_balancer   = var.create_load_balancer || var.deployment_mode == "production"
   effective_create_service_scaling = var.create_service_autoscaling || var.deployment_mode == "production"
 
-  has_external_target_group = var.target_group_arn != null && trimspace(var.target_group_arn) != ""
+  # coalesce evita `trimspace(null)` que falha no Terraform quando target_group_arn não é informado.
+  external_target_group_arn = trimspace(coalesce(var.target_group_arn, ""))
+  has_external_target_group = local.external_target_group_arn != ""
   attach_to_load_balancer   = local.effective_create_load_balancer || local.has_external_target_group
+
+  execution_role_arn = coalesce(
+    var.execution_role_arn,
+    "arn:aws:iam::${data.aws_caller_identity.current.account_id}:role/ecsTaskExecutionRole"
+  )
 
   common_tags = merge(
     {
@@ -81,6 +88,32 @@ resource "aws_security_group" "service" {
   description = "Security group for ECS service ${var.name}"
   vpc_id      = var.vpc_id
   tags        = local.common_tags
+
+  # Default do provider AWS (~15min) é insuficiente para Fargate liberar ENIs.
+  # O sleep no null_resource.fargate_eni_release_wait garante a folga, mas mantemos o teto alto.
+  timeouts {
+    delete = "45m"
+  }
+}
+
+# Sleep on destroy para aguardar o Fargate liberar as ENIs antes de deletar o SG das tasks.
+# Sem isso, o destroy do aws_security_group falha com DependencyViolation porque ENIs ainda referenciam o SG.
+resource "null_resource" "fargate_eni_release_wait" {
+  count = var.create_security_group ? 1 : 0
+
+  triggers = {
+    delay_seconds = tostring(var.fargate_sg_delete_delay_seconds)
+  }
+
+  provisioner "local-exec" {
+    when    = destroy
+    command = "sleep ${self.triggers.delay_seconds}"
+  }
+
+  # Depende só do SG: tanto este null_resource quanto o aws_ecs_service são "dependentes" do SG e
+  # são destruídos antes dele. O service finaliza rápido (~30s) e o sleep mantém o destroy do SG
+  # bloqueado até o Fargate liberar as ENIs.
+  depends_on = [aws_security_group.service]
 }
 
 resource "aws_vpc_security_group_egress_rule" "service_all" {
@@ -155,7 +188,8 @@ resource "aws_ecs_task_definition" "this" {
   requires_compatibilities = ["FARGATE"]
   cpu                      = tostring(var.task_cpu)
   memory                   = tostring(var.task_memory)
-  execution_role_arn       = "arn:aws:iam::${data.aws_caller_identity.current.account_id}:role/ecsTaskExecutionRole"
+  execution_role_arn       = local.execution_role_arn
+  task_role_arn            = var.task_role_arn
   container_definitions = jsonencode([
     {
       name      = var.container_name
@@ -215,7 +249,7 @@ resource "aws_ecs_service" "this" {
     for_each = local.attach_to_load_balancer ? [1] : []
 
     content {
-      target_group_arn = local.has_external_target_group ? trimspace(var.target_group_arn) : aws_lb_target_group.this[0].arn
+      target_group_arn = local.has_external_target_group ? local.external_target_group_arn : aws_lb_target_group.this[0].arn
       container_name   = var.container_name
       container_port   = var.container_port
     }
